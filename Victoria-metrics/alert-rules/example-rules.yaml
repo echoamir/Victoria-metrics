@@ -1,0 +1,12 @@
+groups:
+  - name: example
+    rules:
+      - alert: HighCPU
+        expr: rate(node_cpu_seconds_total{mode="user"}[1m]) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage high"
+          description: "User mode CPU usage > 50% for 30s"
+

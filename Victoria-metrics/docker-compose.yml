@@ -1,0 +1,69 @@
+services:
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoria-metrics
+    volumes:
+      - vm-data:/victoria-metrics-data
+    ports:
+      - "8428:8428"
+    command:
+      - "-storageDataPath=/victoria-metrics-data"
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    container_name: vmagent
+    volumes:
+      - ./vmagent.yaml:/etc/vmagent/vmagent.yaml:ro
+    command:
+      - '--promscrape.config=/etc/vmagent/vmagent.yaml'
+      - '--remoteWrite.url=http://victoria-metrics:8428/api/v1/write'
+    depends_on:
+      - victoria-metrics
+      - node-exporter
+    restart: unless-stopped
+
+  vmalert:
+    image: victoriametrics/vmalert:latest
+    container_name: vmalert
+    volumes:
+      - ./alert-rules:/etc/alerts:ro
+    command:
+      - '-datasource.url=http://victoria-metrics:8428'
+      - '-remoteWrite.url=http://victoria-metrics:8428/api/v1/write'
+      - '-rule=/etc/alerts/*.yaml'
+      - '-notifier.url='  # در صورت نیاز به ارسال هشدار می‌تونی یه webhook یا alertmanager بذاری
+    depends_on:
+      - victoria-metrics
+    ports:
+      - "8880:8880"  # رابط وب vmalert
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - victoria-metrics
+      - vmagent
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+
+volumes:
+  vm-data:
+    driver: local
+  grafana-data:
+    driver: local
+
